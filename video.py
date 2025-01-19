@@ -1,8 +1,8 @@
+import os
 import requests
 import moviepy.editor as mp
 import speech_recognition as sr
 from flask import Flask, request, jsonify
-import os
 
 app = Flask(__name__)
 
@@ -10,79 +10,91 @@ app = Flask(__name__)
 CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dphzerv30/upload"
 UPLOAD_PRESET = "ml_default"
 
-
-def download_video(video_url, save_path):
-    """Download video from Cloudinary"""
-    response = requests.get(video_url, stream=True)
-    if response.status_code == 200:
-        with open(save_path, "wb") as video_file:
-            for chunk in response.iter_content(chunk_size=1024):
-                video_file.write(chunk)
+def download_video_from_cloudinary(video_url, save_path):
+    """Download video from Cloudinary to a local path."""
+    try:
+        response = requests.get(video_url, stream=True)
+        response.raise_for_status()
+        with open(save_path, 'wb') as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                file.write(chunk)
+        print(f"Video downloaded successfully: {save_path}")
         return save_path
-    else:
-        raise Exception(f"Failed to download video: {response.status_code}")
-
-
-def extract_audio(video_path, audio_path):
-    """Extract audio from video and save as WAV"""
-    video = mp.VideoFileClip(video_path)
-    audio = video.audio
-    audio.write_audiofile(audio_path)
-    return audio_path
-
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Error downloading video: {e}")
 
 def upload_to_cloudinary(file_path):
-    """Upload file to Cloudinary"""
-    with open(file_path, "rb") as file:
-        response = requests.post(
-            CLOUDINARY_URL,
-            files={"file": file},
-            data={"upload_preset": UPLOAD_PRESET},
-        )
-        if response.status_code == 200:
-            return response.json()["secure_url"]
-        else:
-            raise Exception(f"Failed to upload to Cloudinary: {response.json()}")
+    """Upload a file to Cloudinary."""
+    try:
+        with open(file_path, "rb") as file:
+            response = requests.post(
+                CLOUDINARY_URL,
+                files={"file": file},
+                data={"upload_preset": UPLOAD_PRESET},
+            )
+            response.raise_for_status()
+            file_url = response.json().get("secure_url")
+            print(f"Uploaded file URL: {file_url}")
+            return file_url
+    except Exception as e:
+        raise Exception(f"Failed to upload to Cloudinary: {e}")
 
+def extract_audio_from_video(video_path, audio_path):
+    """Extract audio from video and save it as a WAV file."""
+    try:
+        video = mp.VideoFileClip(video_path)
+        audio = video.audio
+        audio.write_audiofile(audio_path)
+        print(f"Audio extracted to: {audio_path}")
+        return audio_path
+    except Exception as e:
+        raise Exception(f"Error extracting audio: {e}")
 
 def transcribe_audio(audio_path):
-    """Transcribe audio using SpeechRecognition"""
+    """Transcribe audio using Google Speech Recognition."""
     recognizer = sr.Recognizer()
-    with sr.AudioFile(audio_path) as source:
-        audio_data = recognizer.record(source)
-        transcript = recognizer.recognize_google(audio_data)
-    return transcript
-
+    try:
+        with sr.AudioFile(audio_path) as source:
+            audio_data = recognizer.record(source)
+            transcript = recognizer.recognize_google(audio_data)
+            print("Transcription successful.")
+            return transcript
+    except Exception as e:
+        raise Exception(f"Error transcribing audio: {e}")
 
 @app.route("/process-video", methods=["POST"])
 def process_video():
-    """Process video from Cloudinary and return transcript"""
+    """Process video from Cloudinary, upload audio, and return transcription."""
     try:
         # Get video URL from request
         video_url = request.json.get("video_url")
         if not video_url:
             return jsonify({"error": "Missing video_url"}), 400
 
-        # Paths
-        video_path = "downloaded_video.mp4"
-        audio_path = "extracted_audio.wav"
+        # Temporary file paths
+        video_path = "react_fdeqwq.mp4"
+        audio_path = "geeksforgeeks.wav"
 
-        # Process video and audio
-        download_video(video_url, video_path)
-        extract_audio(video_path, audio_path)
+        # Download video from Cloudinary
+        download_video_from_cloudinary(video_url, video_path)
 
-        # Upload audio to Cloudinary
+        # Extract audio from video
+        extract_audio_from_video(video_path, audio_path)
+
+        # Upload audio file to Cloudinary
         audio_url = upload_to_cloudinary(audio_path)
 
         # Transcribe audio
         transcript = transcribe_audio(audio_path)
 
-        # Return result
+        # Cleanup temporary files
+        os.remove(video_path)
+        os.remove(audio_path)
+
         return jsonify({"audio_url": audio_url, "transcript": transcript})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use PORT environment variable or default to 5000
