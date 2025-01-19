@@ -6,6 +6,8 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+video_path = "react_fdeqwq.mp4"
+audio_path = "geeksforgeeks.wav"
 # Cloudinary details
 CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dphzerv30/upload"
 UPLOAD_PRESET = "ml_default"
@@ -71,10 +73,6 @@ def process_video():
             video_url = request.json.get("video_url")
             if not video_url:
                 return jsonify({"error": "Missing video_url"}), 400
-
-            # Temporary file paths
-            video_path = "react_fdeqwq.mp4"
-            audio_path = "geeksforgeeks.wav"
 
             # Download video from Cloudinary
             download_video_from_cloudinary(video_url, video_path)
