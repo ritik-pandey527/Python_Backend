@@ -61,9 +61,13 @@ def transcribe_audio(audio_path):
             transcript = recognizer.recognize_google(audio_data)
             print("Transcription successful.")
             return transcript
+    except sr.UnknownValueError:
+        raise Exception("Google Speech Recognition could not understand the audio")
+    except sr.RequestError as e:
+        raise Exception(f"Could not request results from Google Speech Recognition service; {e}")
     except Exception as e:
         raise Exception(f"Error transcribing audio: {e}")
-
+        
 @app.route("/process-video", methods=["POST", "GET"])
 def process_video():
     """Process video from Cloudinary, upload audio, and return transcription."""
@@ -98,7 +102,6 @@ def process_video():
     elif request.method == "GET":
         # You can provide a default response or documentation for GET requests if needed.
         return jsonify({"message": "Please use a POST request to send a video URL for processing."}), 200
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use PORT environment variable or default to 5000
     app.run(host="0.0.0.0", port=port, debug=True)
