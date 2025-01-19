@@ -1,3 +1,5 @@
+
+You said:
 import os
 import requests
 import moviepy.editor as mp
@@ -6,19 +8,9 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Set the maximum file size for uploads (e.g., 50 MB)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
-
-# Ensure directories for video and audio files exist
-VIDEO_DIR = 'videos'
-AUDIO_DIR = 'audio'
-
-os.makedirs(VIDEO_DIR, exist_ok=True)
-os.makedirs(AUDIO_DIR, exist_ok=True)
-
-video_path = os.path.join(VIDEO_DIR, "react_fdeqwq.mp4")
-audio_path = os.path.join(AUDIO_DIR, "geeksforgeeks.wav")
-audio_download_path = os.path.join(AUDIO_DIR, "local_audio.wav")  # Local path to save the extracted audio
+# Cloudinary details
+CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dphzerv30/upload"
+UPLOAD_PRESET = "ml_default"
 
 def download_video_from_cloudinary(video_url, save_path):
     """Download video from Cloudinary to a local path."""
@@ -32,6 +24,22 @@ def download_video_from_cloudinary(video_url, save_path):
         return save_path
     except requests.exceptions.RequestException as e:
         raise Exception(f"Error downloading video: {e}")
+
+def upload_to_cloudinary(file_path):
+    """Upload a file to Cloudinary."""
+    try:
+        with open(file_path, "rb") as file:
+            response = requests.post(
+                CLOUDINARY_URL,
+                files={"file": file},
+                data={"upload_preset": UPLOAD_PRESET},
+            )
+            response.raise_for_status()
+            file_url = response.json().get("secure_url")
+            print(f"Uploaded file URL: {file_url}")
+            return file_url
+    except Exception as e:
+        raise Exception(f"Failed to upload to Cloudinary: {e}")
 
 def extract_audio_from_video(video_path, audio_path):
     """Extract audio from video and save it as a WAV file."""
@@ -53,16 +61,12 @@ def transcribe_audio(audio_path):
             transcript = recognizer.recognize_google(audio_data)
             print("Transcription successful.")
             return transcript
-    except sr.UnknownValueError:
-        raise Exception("Google Speech Recognition could not understand the audio")
-    except sr.RequestError as e:
-        raise Exception(f"Could not request results from Google Speech Recognition service; {e}")
     except Exception as e:
         raise Exception(f"Error transcribing audio: {e}")
 
 @app.route("/process-video", methods=["POST", "GET"])
 def process_video():
-    """Process video from Cloudinary, download audio locally, and return transcription."""
+    """Process video from Cloudinary, upload audio, and return transcription."""
     if request.method == "POST":
         try:
             # Get video URL from request
@@ -70,24 +74,27 @@ def process_video():
             if not video_url:
                 return jsonify({"error": "Missing video_url"}), 400
 
+            # Temporary file paths
+            video_path = "react_fdeqwq.mp4"
+            audio_path = "geeksforgeeks.wav"
+
             # Download video from Cloudinary
             download_video_from_cloudinary(video_url, video_path)
 
             # Extract audio from video
             extract_audio_from_video(video_path, audio_path)
 
-            # Save the extracted audio locally (skip upload to Cloudinary)
-            os.rename(audio_path, audio_download_path)  # Rename the audio file for download
-            print(f"Audio saved locally at: {audio_download_path}")
+            # Upload audio file to Cloudinary
+            audio_url = upload_to_cloudinary(audio_path)
 
             # Transcribe audio
-            transcript = transcribe_audio(audio_download_path)
+            transcript = transcribe_audio(audio_path)
 
             # Cleanup temporary files
             os.remove(video_path)
-            os.remove(audio_download_path)
+            os.remove(audio_path)
 
-            return jsonify({"audio_download_url": audio_download_path, "transcript": transcript})
+            return jsonify({"audio_url": audio_url, "transcript": transcript})
 
         except Exception as e:
             print(f"Error: {str(e)}")  # Log the error for debugging
@@ -97,5 +104,5 @@ def process_video():
         return jsonify({"message": "Please use a POST request to send a video URL for processing."}), 200
 
 if __name__ == "__main__":
-    # For production, we will use Gunicorn (especially when deployed on Heroku or any server)
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))  # Use PORT environment variable or default to 5000
+    app.run(host="0.0.0.0", port=port, debug=True)
