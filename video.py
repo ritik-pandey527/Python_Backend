@@ -3,8 +3,11 @@ import requests
 import moviepy.editor as mp
 import speech_recognition as sr
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
 
 # Cloudinary details
 CLOUD_NAME = "dphzerv30"
