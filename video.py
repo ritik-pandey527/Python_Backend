@@ -1,59 +1,60 @@
-
-You said:
 import os
 import requests
 import moviepy.editor as mp
 import speech_recognition as sr
 from flask import Flask, request, jsonify
 
-app = Flask(__name__)
+app = Flask(_name_)
 
 # Cloudinary details
-CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dphzerv30/upload"
+CLOUD_NAME = "dphzerv30"
+API_KEY = "729132374995264"
+API_SECRET = "ZAhu0TbqppD4vBwx3hnWWRRyMAga"
 UPLOAD_PRESET = "ml_default"
 
-def download_video_from_cloudinary(video_url, save_path):
-    """Download video from Cloudinary to a local path."""
+def download_file(file_url, save_path):
+    """Download a file from a given URL and save it locally."""
     try:
-        response = requests.get(video_url, stream=True)
+        response = requests.get(file_url, stream=True)
         response.raise_for_status()
         with open(save_path, 'wb') as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
-        print(f"Video downloaded successfully: {save_path}")
-        return save_path
+        print(f"File downloaded successfully: {save_path}")
     except requests.exceptions.RequestException as e:
-        raise Exception(f"Error downloading video: {e}")
-
-def upload_to_cloudinary(file_path):
-    """Upload a file to Cloudinary."""
-    try:
-        with open(file_path, "rb") as file:
-            response = requests.post(
-                CLOUDINARY_URL,
-                files={"file": file},
-                data={"upload_preset": UPLOAD_PRESET},
-            )
-            response.raise_for_status()
-            file_url = response.json().get("secure_url")
-            print(f"Uploaded file URL: {file_url}")
-            return file_url
-    except Exception as e:
-        raise Exception(f"Failed to upload to Cloudinary: {e}")
+        raise Exception(f"Error downloading file: {e}")
 
 def extract_audio_from_video(video_path, audio_path):
-    """Extract audio from video and save it as a WAV file."""
+    """Extract audio from a video and save it as a WAV file."""
     try:
         video = mp.VideoFileClip(video_path)
         audio = video.audio
         audio.write_audiofile(audio_path)
         print(f"Audio extracted to: {audio_path}")
-        return audio_path
     except Exception as e:
         raise Exception(f"Error extracting audio: {e}")
 
+def upload_audio_to_cloudinary(file_path):
+    """Upload an audio file to Cloudinary and return its secure URL."""
+    url = f"https://api.cloudinary.com/v1_1/{CLOUD_NAME}/upload"
+    try:
+        with open(file_path, "rb") as file:
+            data = {
+                "upload_preset": UPLOAD_PRESET,
+            }
+            files = {
+                "file": file
+            }
+            response = requests.post(url, auth=(API_KEY, API_SECRET), data=data, files=files)
+            response.raise_for_status()
+            result = response.json()
+            print("Uploaded file URL:", result["secure_url"])
+            return result["secure_url"]
+    except Exception as e:
+        raise Exception(f"Error uploading file to Cloudinary: {e}")
+
 def transcribe_audio(audio_path):
-    """Transcribe audio using Google Speech Recognition."""
+    """Transcribe audio from a WAV file using Google Speech Recognition."""
     recognizer = sr.Recognizer()
     try:
         with sr.AudioFile(audio_path) as source:
@@ -64,45 +65,41 @@ def transcribe_audio(audio_path):
     except Exception as e:
         raise Exception(f"Error transcribing audio: {e}")
 
-@app.route("/process-video", methods=["POST", "GET"])
+@app.route("/process-video", methods=["POST"])
 def process_video():
-    """Process video from Cloudinary, upload audio, and return transcription."""
-    if request.method == "POST":
-        try:
-            # Get video URL from request
-            video_url = request.json.get("video_url")
-            if not video_url:
-                return jsonify({"error": "Missing video_url"}), 400
+    """Process video: download, extract audio, upload audio, and return JSON response."""
+    try:
+        # Get video URL from request
+        video_url = request.json.get("video_url")
+        if not video_url:
+            return jsonify({"error": "Missing video_url"}), 400
 
-            # Temporary file paths
-            video_path = "react_fdeqwq.mp4"
-            audio_path = "geeksforgeeks.wav"
+        # Temporary file paths
+        video_path = "video.mp4"
+        audio_path = "audio.wav"
 
-            # Download video from Cloudinary
-            download_video_from_cloudinary(video_url, video_path)
+        # Download video
+        download_file(video_url, video_path)
 
-            # Extract audio from video
-            extract_audio_from_video(video_path, audio_path)
+        # Extract audio
+        extract_audio_from_video(video_path, audio_path)
 
-            # Upload audio file to Cloudinary
-            audio_url = upload_to_cloudinary(audio_path)
+        # Upload audio to Cloudinary
+        audio_url = upload_audio_to_cloudinary(audio_path)
 
-            # Transcribe audio
-            transcript = transcribe_audio(audio_path)
+        # Transcribe audio
+        transcript = transcribe_audio(audio_path)
 
-            # Cleanup temporary files
-            os.remove(video_path)
-            os.remove(audio_path)
+        # Cleanup temporary files
+        os.remove(video_path)
+        os.remove(audio_path)
 
-            return jsonify({"audio_url": audio_url, "transcript": transcript})
+        return jsonify({"audio_url": audio_url, "transcript": transcript})
 
-        except Exception as e:
-            print(f"Error: {str(e)}")  # Log the error for debugging
-            return jsonify({"error": str(e)}), 500
-    elif request.method == "GET":
-        # You can provide a default response or documentation for GET requests if needed.
-        return jsonify({"message": "Please use a POST request to send a video URL for processing."}), 200
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Use PORT environment variable or default to 5000
+    port = int(os.environ.get("PORT", 5000))  # Default to port 5000 if not set
     app.run(host="0.0.0.0", port=port, debug=True)
