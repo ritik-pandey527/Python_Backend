@@ -4,7 +4,7 @@ import moviepy.editor as mp
 import speech_recognition as sr
 from flask import Flask, request, jsonify
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 # Cloudinary details
 CLOUD_NAME = "dphzerv30"
