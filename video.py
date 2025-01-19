@@ -62,39 +62,44 @@ def transcribe_audio(audio_path):
     except Exception as e:
         raise Exception(f"Error transcribing audio: {e}")
 
-@app.route("/process-video", methods=["POST"])
+@app.route("/process-video", methods=["POST", "GET"])
 def process_video():
     """Process video from Cloudinary, upload audio, and return transcription."""
-    try:
-        # Get video URL from request
-        video_url = request.json.get("video_url")
-        if not video_url:
-            return jsonify({"error": "Missing video_url"}), 400
+    if request.method == "POST":
+        try:
+            # Get video URL from request
+            video_url = request.json.get("video_url")
+            if not video_url:
+                return jsonify({"error": "Missing video_url"}), 400
 
-        # Temporary file paths
-        video_path = "react_fdeqwq.mp4"
-        audio_path = "geeksforgeeks.wav"
+            # Temporary file paths
+            video_path = "react_fdeqwq.mp4"
+            audio_path = "geeksforgeeks.wav"
 
-        # Download video from Cloudinary
-        download_video_from_cloudinary(video_url, video_path)
+            # Download video from Cloudinary
+            download_video_from_cloudinary(video_url, video_path)
 
-        # Extract audio from video
-        extract_audio_from_video(video_path, audio_path)
+            # Extract audio from video
+            extract_audio_from_video(video_path, audio_path)
 
-        # Upload audio file to Cloudinary
-        audio_url = upload_to_cloudinary(audio_path)
+            # Upload audio file to Cloudinary
+            audio_url = upload_to_cloudinary(audio_path)
 
-        # Transcribe audio
-        transcript = transcribe_audio(audio_path)
+            # Transcribe audio
+            transcript = transcribe_audio(audio_path)
 
-        # Cleanup temporary files
-        os.remove(video_path)
-        os.remove(audio_path)
+            # Cleanup temporary files
+            os.remove(video_path)
+            os.remove(audio_path)
 
-        return jsonify({"audio_url": audio_url, "transcript": transcript})
+            return jsonify({"audio_url": audio_url, "transcript": transcript})
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        except Exception as e:
+            print(f"Error: {str(e)}")  # Log the error for debugging
+            return jsonify({"error": str(e)}), 500
+    elif request.method == "GET":
+        # You can provide a default response or documentation for GET requests if needed.
+        return jsonify({"message": "Please use a POST request to send a video URL for processing."}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use PORT environment variable or default to 5000
