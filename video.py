@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import moviepy.editor as mp
 import speech_recognition as sr
 import requests
-
+import os
 app = Flask(__name__)
 
 # Hardcoded Cloudinary credentials (Not recommended for production)
