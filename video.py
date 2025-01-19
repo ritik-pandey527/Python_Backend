@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 video_path = "react_fdeqwq.mp4"
-audio_path = "geeksforgeeks.wav"
+audio_path = "extracted.wav"
 # Cloudinary details
 CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dphzerv30/upload"
 UPLOAD_PRESET = "ml_default"
@@ -67,7 +67,7 @@ def transcribe_audio(audio_path):
         raise Exception(f"Could not request results from Google Speech Recognition service; {e}")
     except Exception as e:
         raise Exception(f"Error transcribing audio: {e}")
-        
+
 @app.route("/process-video", methods=["POST", "GET"])
 def process_video():
     """Process video from Cloudinary, upload audio, and return transcription."""
@@ -102,6 +102,7 @@ def process_video():
     elif request.method == "GET":
         # You can provide a default response or documentation for GET requests if needed.
         return jsonify({"message": "Please use a POST request to send a video URL for processing."}), 200
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use PORT environment variable or default to 5000
     app.run(host="0.0.0.0", port=port, debug=True)
