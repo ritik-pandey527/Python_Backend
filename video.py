@@ -27,47 +27,73 @@ def download_file(file_url, save_path):
 def extract_audio_from_video(video_path, audio_path):
     """Extract audio from a video and save it as a WAV file."""
     try:
+        # Ensure the audio file is overwritten if it exists
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+
         video = mp.VideoFileClip(video_path)
         audio = video.audio
         audio.write_audiofile(audio_path)
         print(f"Audio extracted to: {audio_path}")
+
+        # Check if audio file exists
+        if not os.path.exists(audio_path):
+            raise Exception("Audio extraction failed, file does not exist.")
     except Exception as e:
         raise Exception(f"Error extracting audio: {e}")
 
+
+
 def upload_audio_to_cloudinary(file_path):
-    """Upload an audio file to Cloudinary and return its secure URL."""
+    """Upload an audio file to Cloudinary and return its URL with the same name."""
     url = f"https://api.cloudinary.com/v1_1/{CLOUD_NAME}/upload"
     try:
+        # Extract the file name without the path
+        file_name = os.path.basename(file_path)
+        
+        # Set the public_id to the file name (keep the same name in Cloudinary)
+        data = {
+            "upload_preset": UPLOAD_PRESET,
+            "public_id": file_name.split('.')[0],  # Use the file name without the extension
+        }
+        
+        # Open the file and prepare it for upload
         with open(file_path, "rb") as file:
-            data = {
-                "upload_preset": UPLOAD_PRESET,
-            }
             files = {
                 "file": file
             }
             response = requests.post(url, auth=(API_KEY, API_SECRET), data=data, files=files)
             response.raise_for_status()
             result = response.json()
-            print("Uploaded file URL:", result["secure_url"])
-            return result["secure_url"]
+            print("Uploaded file URL:", result["url"])  # Use result['url'] instead of 'secure_url'
+            return result["url"]  # Return the normal URL, not the secure one
     except Exception as e:
         raise Exception(f"Error uploading file to Cloudinary: {e}")
+
 
 def transcribe_audio(audio_path):
     """Transcribe audio from a WAV file using Google Speech Recognition."""
     recognizer = sr.Recognizer()
     try:
         with sr.AudioFile(audio_path) as source:
+            print("Loading audio file...")
             audio_data = recognizer.record(source)
-            transcript = recognizer.recognize_google(audio_data)
+            print("Transcribing audio...")
+            # Set language explicitly, e.g., 'en-US' for English
+            transcript = recognizer.recognize_google(audio_data, language="en-US")
             print("Transcription successful.")
             return transcript
+    except sr.UnknownValueError:
+        raise Exception("Google Speech Recognition could not understand the audio. Check audio quality.")
+    except sr.RequestError as e:
+        raise Exception(f"Google Speech Recognition service error: {e}")
     except Exception as e:
         raise Exception(f"Error transcribing audio: {e}")
 
+
 @app.route("/process-video", methods=["POST"])
 def process_video():
-    """Process video: download, extract audio, upload audio, and return JSON response."""
+    """Process video: download, extract audio, and transcribe audio."""
     try:
         # Get video URL from request
         video_url = request.json.get("video_url")
@@ -76,7 +102,7 @@ def process_video():
 
         # Temporary file paths
         video_path = "video.mp4"
-        audio_path = "audio.wav"
+        audio_path = "geeksforgeeks.wav"  # Path for the locally saved audio
 
         # Download video
         download_file(video_url, video_path)
@@ -84,21 +110,22 @@ def process_video():
         # Extract audio
         extract_audio_from_video(video_path, audio_path)
 
-        # Upload audio to Cloudinary
-        audio_url = upload_audio_to_cloudinary(audio_path)
-
         # Transcribe audio
         transcript = transcribe_audio(audio_path)
 
-        # Cleanup temporary files
+        # Cleanup temporary video file (optional: keep audio file if needed)
         os.remove(video_path)
-        os.remove(audio_path)
 
-        return jsonify({"audio_url": audio_url, "transcript": transcript})
+        # Return local audio path and transcription
+        return jsonify({
+            "audio_path": os.path.abspath(audio_path),
+            "transcript": transcript
+        })
 
     except Exception as e:
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Default to port 5000 if not set
