@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Online GPS Tracker</title>
+</head>
+<body>
+  <h2>📍 GPS Tracker - Sending Location...</h2>
+  <p id="status">Initializing...</p>
+
+  <script>
+    const status = document.getElementById("status");
+
+    function sendData(lat, lon) {
+      fetch("http://<YOUR_PC_IP>:5000/receive", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          latitude: lat,
+          longitude: lon
+        })
+      })
+      .then(res => res.text())
+      .then(data => {
+        console.log("Server response:", data);
+        status.textContent = `Sent: ${lat}, ${lon}`;
+      })
+      .catch(err => {
+        console.error("Error:", err);
+        status.textContent = "❌ Error sending data";
+      });
+    }
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.watchPosition((position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        console.log("Position:", lat, lon);
+        sendData(lat, lon);
+      }, (error) => {
+        status.textContent = "❌ Error: " + error.message;
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000
+      });
+    } else {
+      status.textContent = "❌ Geolocation not supported!";
+    }
+  </script>
+</body>
+</html>
