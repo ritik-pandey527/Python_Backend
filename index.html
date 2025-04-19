@@ -11,7 +11,7 @@
     const status = document.getElementById("status");
 
     function sendData(lat, lon) {
-      fetch("http://<YOUR_PC_IP>:5000/receive", {
+      fetch("https://python-backend-73bb.onrender.com", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
